@@ -6,7 +6,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const addBookForm = document.getElementById('add-book-form');
     const addBookError = document.getElementById('add-book-error');
 
-    // Show loading state
     usernameEl.textContent = 'Loading profile...';
     emailEl.textContent = '';
     readingListEl.innerHTML = '<li class="list-group-item">Loading reading list...</li>';
@@ -38,14 +37,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (error) {
           console.error(`Fetch attempt ${attempt} failed for ${url}:`, error);
           if (attempt === maxRetries) throw error;
-          await new Promise(resolve => setTimeout(resolve, delay * attempt)); // Exponential backoff
+          await new Promise(resolve => setTimeout(resolve, delay * attempt));
         }
       }
       return null;
     }
 
     try {
-      // Fetch profile including reading list
       const profileRes = await fetchProfileWithRetry('/users/profile', {
         headers: { 'Authorization': 'Bearer ' + token },
       });
@@ -54,12 +52,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       usernameEl.textContent = `${profile.username}'s Profile`;
       emailEl.textContent = `Email: ${profile.email}`;
 
-      // Process reading list directly from user document
       const readingList = profile.readingList || [];
       if (readingList.length === 0) {
         readingListEl.innerHTML = '<li class="list-group-item">No items in reading list.</li>';
       } else {
-        // Fetch book details for each ISBN in the reading list
         const readingListWithDetails = await Promise.all(
           readingList.map(async (item) => {
             try {
@@ -86,7 +82,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           })
         );
 
-        // Display reading list with book details
         readingListEl.innerHTML = readingListWithDetails.length > 0 ?
           readingListWithDetails.map(item => `
             <li class="list-group-item d-flex justify-content-between align-items-center">
@@ -102,7 +97,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       readingListEl.innerHTML = '<li class="list-group-item text-danger">Failed to load reading list: ' + error.message + '</li>';
     }
 
-    // Function to show book details via modal or redirect
     window.showBookDetails = async (isbn) => {
       try {
         const bookRes = await fetch(`/books/${isbn}`, {
