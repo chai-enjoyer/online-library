@@ -32,12 +32,12 @@ const bookSchema = Joi.object({
 });
 
 const readingListSchema = Joi.object({
-  isbn: Joi.string().required(), // Changed from bookId to isbn
+  isbn: Joi.string().required(),
   status: Joi.string().valid('to-read', 'reading', 'completed').required()
 });
 
 const ratingSchema = Joi.object({
-  isbn: Joi.string().required(), // Assuming rating also uses isbn now
+  isbn: Joi.string().required(),
   rating: Joi.number().min(1).max(5).required(),
 });
 

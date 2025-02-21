@@ -16,7 +16,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      // Fetch and display users
       const usersRes = await fetch('/users/all', {
         headers: { 'Authorization': 'Bearer ' + token },
       });
@@ -35,7 +34,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         </tr>
       `).join('') : '<tr><td colspan="4" class="text-center">No users found.</td></tr>';
 
-      // Fetch and display books
       const booksRes = await fetch('/books', {
         headers: { 'Authorization': 'Bearer ' + token },
       });

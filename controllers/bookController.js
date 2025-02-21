@@ -125,12 +125,10 @@ const getReadingList = async (req, res) => {
     const user = await User.findById(req.user.id).select('readingList');
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // Handle case where readingList might not exist or is empty
     if (!user.readingList || user.readingList.length === 0) {
       return res.json([]);
     }
 
-    // Return only the ISBN-based reading list entries
     const readingList = user.readingList.map(item => ({
       isbn: item.isbn,
       status: item.status,

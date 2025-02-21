@@ -14,7 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
       logoutBtn.style.display = isAuthenticated ? 'inline' : 'none';
     }
 
-    // Check token validity without redirecting unless explicitly needed
     if (token) {
       fetch('/users/profile', {
         headers: { 'Authorization': 'Bearer ' + token }
@@ -29,7 +28,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }).catch(() => {
         localStorage.removeItem('token');
         updateNav(false, false);
-        // Only redirect to login if on a protected page (handled by individual page scripts)
       });
     } else {
       updateNav(false, false);
