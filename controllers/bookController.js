@@ -1,6 +1,5 @@
-const mongoose = require('mongoose');
 const Book = require('../models/Book');
-const ReadingList = require('../models/ReadingList');
+const User = require('../models/User');
 const Rating = require('../models/Rating');
 
 const createBook = async (req, res) => {
@@ -52,11 +51,9 @@ const getBooks = async (req, res) => {
 };
 
 const getBookById = async (req, res) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({ message: 'Invalid book ID' });
-  }
+  const { isbn } = req.params;
   try {
-    const book = await Book.findById(req.params.id).populate('addedBy', 'username');
+    const book = await Book.findOne({ isbn }).populate('addedBy', 'username');
     if (!book) return res.status(404).json({ message: 'Book not found' });
     const ratings = await Rating.find({ bookId: book._id });
     const avgRating = ratings.length > 0 ? ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length : 0;
@@ -67,11 +64,9 @@ const getBookById = async (req, res) => {
 };
 
 const updateBook = async (req, res) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({ message: 'Invalid book ID' });
-  }
+  const { isbn } = req.params;
   try {
-    const book = await Book.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const book = await Book.findOneAndUpdate({ isbn }, req.body, { new: true });
     if (!book) return res.status(404).json({ message: 'Book not found' });
     res.json(book);
   } catch (error) {
@@ -80,14 +75,15 @@ const updateBook = async (req, res) => {
 };
 
 const deleteBook = async (req, res) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({ message: 'Invalid book ID' });
-  }
+  const { isbn } = req.params;
   try {
-    const book = await Book.findByIdAndDelete(req.params.id);
+    const book = await Book.findOneAndDelete({ isbn });
     if (!book) return res.status(404).json({ message: 'Book not found' });
-    await ReadingList.deleteMany({ bookId: req.params.id });
-    await Rating.deleteMany({ bookId: req.params.id });
+    await User.updateMany(
+      { 'readingList.isbn': isbn },
+      { $pull: { readingList: { isbn } } }
+    );
+    await Rating.deleteMany({ bookId: book._id });
     res.status(204).send();
   } catch (error) {
     res.status(500).json({ message: 'Error deleting book' });
@@ -95,47 +91,70 @@ const deleteBook = async (req, res) => {
 };
 
 const addToReadingList = async (req, res) => {
-  const { bookId, status } = req.body;
-  if (!mongoose.Types.ObjectId.isValid(bookId)) {
-    return res.status(400).json({ message: 'Invalid book ID' });
-  }
+  const { isbn, status } = req.body;
+  console.log('Received payload:', { isbn, status });
   try {
-    const existing = await ReadingList.findOne({ userId: req.user.id, bookId });
-    if (existing) {
-      existing.status = status;
-      await existing.save();
-      return res.status(200).json(existing);
+    if (!isbn) return res.status(400).json({ message: 'ISBN is required' });
+    if (!status) return res.status(400).json({ message: 'Status is required' });
+
+    const book = await Book.findOne({ isbn });
+    if (!book) {
+      console.log(`Book not found for ISBN: ${isbn}`);
+      return res.status(404).json({ message: `Book with ISBN ${isbn} not found` });
     }
-    const readingList = new ReadingList({ userId: req.user.id, bookId, status });
-    await readingList.save();
-    res.status(201).json(readingList);
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const existingEntry = user.readingList.find(item => item.isbn === isbn);
+    if (existingEntry) {
+      existingEntry.status = status;
+    } else {
+      user.readingList.push({ isbn, status });
+    }
+    await user.save();
+    res.status(existingEntry ? 200 : 201).json({ message: existingEntry ? 'Updated reading list' : 'Added to reading list' });
   } catch (error) {
-    res.status(500).json({ message: 'Error adding to reading list' });
+    console.error('Error in addToReadingList:', error);
+    res.status(500).json({ message: 'Error adding to reading list: ' + error.message });
   }
 };
 
 const getReadingList = async (req, res) => {
   try {
-    const list = await ReadingList.find({ userId: req.user.id }).populate('bookId', 'title authors');
-    res.json(list);
+    const user = await User.findById(req.user.id).select('readingList');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Handle case where readingList might not exist or is empty
+    if (!user.readingList || user.readingList.length === 0) {
+      return res.json([]);
+    }
+
+    // Return only the ISBN-based reading list entries
+    const readingList = user.readingList.map(item => ({
+      isbn: item.isbn,
+      status: item.status,
+      addedAt: item.addedAt
+    }));
+    res.json(readingList);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching reading list' });
+    console.error('Error in getReadingList:', error);
+    res.status(500).json({ message: 'Error fetching reading list: ' + error.message });
   }
 };
 
 const rateBook = async (req, res) => {
-  const { bookId, rating } = req.body;
-  if (!mongoose.Types.ObjectId.isValid(bookId)) {
-    return res.status(400).json({ message: 'Invalid book ID' });
-  }
+  const { isbn, rating } = req.body;
   try {
-    const existingRating = await Rating.findOne({ userId: req.user.id, bookId });
+    const book = await Book.findOne({ isbn });
+    if (!book) return res.status(404).json({ message: 'Book not found' });
+    const existingRating = await Rating.findOne({ userId: req.user.id, bookId: book._id });
     if (existingRating) {
       existingRating.rating = rating;
       await existingRating.save();
       return res.status(200).json(existingRating);
     }
-    const newRating = new Rating({ userId: req.user.id, bookId, rating });
+    const newRating = new Rating({ userId: req.user.id, bookId: book._id, rating });
     await newRating.save();
     res.status(201).json(newRating);
   } catch (error) {

@@ -6,9 +6,9 @@ const { validate, bookSchema, readingListSchema, ratingSchema } = require('../mi
 
 router.post('/', auth, validate(bookSchema), createBook);
 router.get('/', getBooks);
-router.get('/:id', getBookById);
-router.put('/:id', auth, adminOnly, validate(bookSchema), updateBook);
-router.delete('/:id', auth, adminOnly, deleteBook);
+router.get('/:isbn', getBookById);
+router.put('/:isbn', auth, adminOnly, validate(bookSchema), updateBook);
+router.delete('/:isbn', auth, adminOnly, deleteBook);
 router.post('/reading-list', auth, validate(readingListSchema), addToReadingList);
 router.get('/reading-list', auth, getReadingList);
 router.post('/rate', auth, validate(ratingSchema), rateBook);

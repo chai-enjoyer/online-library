@@ -10,6 +10,10 @@ const auth = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
+    console.error('JWT verification error:', error);
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Token expired, please log in again' });
+    }
     res.status(401).json({ message: 'Invalid token' });
   }
 };

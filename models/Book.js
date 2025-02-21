@@ -14,6 +14,4 @@ const bookSchema = new mongoose.Schema({
   addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
 
-bookSchema.index({ title: 1, isbn: 1 }, { unique: true });
-
 module.exports = mongoose.model('Book', bookSchema);
