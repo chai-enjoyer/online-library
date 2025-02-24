@@ -33,11 +33,16 @@ const getBooks = async (req, res) => {
   if (category) query.categories = new RegExp(category, 'i');
   try {
     const books = await Book.find(query).populate('addedBy', 'username');
+    console.log('Books found:', JSON.stringify(books, null, 2)); // Detailed logging of books
     const ratings = await Rating.aggregate([
       { $group: { _id: '$bookId', avgRating: { $avg: '$rating' }, count: { $sum: 1 } } }
     ]);
+    console.log('Ratings found:', JSON.stringify(ratings, null, 2)); // Detailed logging of ratings
     const booksWithRatings = books.map(book => {
-      const ratingData = ratings.find(r => r._id.toString() === book._id.toString());
+      const bookId = book._id ? book._id.toString() : null; // Safely get book._id
+      console.log('Processing book:', JSON.stringify(book, null, 2)); // Log each book being processed
+      const ratingData = ratings.find(r => r._id && r._id.toString() === bookId); // Safely check r._id
+      console.log('Rating data for bookId', bookId, ':', JSON.stringify(ratingData, null, 2)); // Log rating data
       return {
         ...book.toObject(),
         avgRating: ratingData ? ratingData.avgRating : 0,
@@ -47,6 +52,7 @@ const getBooks = async (req, res) => {
     res.json(booksWithRatings);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching books' });
+    console.error('Error in getBooks:', error);
   }
 };
 
@@ -66,9 +72,13 @@ const getBookById = async (req, res) => {
 const updateBook = async (req, res) => {
   const { isbn } = req.params;
   try {
-    const book = await Book.findOneAndUpdate({ isbn }, req.body, { new: true });
+    const book = await Book.findOne({ isbn });
     if (!book) return res.status(404).json({ message: 'Book not found' });
-    res.json(book);
+    if (book.addedBy.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied: Only the creator or admin can update this book' });
+    }
+    const updatedBook = await Book.findOneAndUpdate({ isbn }, req.body, { new: true });
+    res.json(updatedBook);
   } catch (error) {
     res.status(500).json({ message: 'Error updating book' });
   }
@@ -77,8 +87,12 @@ const updateBook = async (req, res) => {
 const deleteBook = async (req, res) => {
   const { isbn } = req.params;
   try {
-    const book = await Book.findOneAndDelete({ isbn });
+    const book = await Book.findOne({ isbn });
     if (!book) return res.status(404).json({ message: 'Book not found' });
+    if (book.addedBy.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied: Only the creator or admin can delete this book' });
+    }
+    await Book.findOneAndDelete({ isbn });
     await User.updateMany(
       { 'readingList.isbn': isbn },
       { $pull: { readingList: { isbn } } }
@@ -92,16 +106,12 @@ const deleteBook = async (req, res) => {
 
 const addToReadingList = async (req, res) => {
   const { isbn, status } = req.body;
-  console.log('Received payload:', { isbn, status });
   try {
     if (!isbn) return res.status(400).json({ message: 'ISBN is required' });
     if (!status) return res.status(400).json({ message: 'Status is required' });
 
     const book = await Book.findOne({ isbn });
-    if (!book) {
-      console.log(`Book not found for ISBN: ${isbn}`);
-      return res.status(404).json({ message: `Book with ISBN ${isbn} not found` });
-    }
+    if (!book) return res.status(404).json({ message: `Book with ISBN ${isbn} not found` });
 
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -115,7 +125,6 @@ const addToReadingList = async (req, res) => {
     await user.save();
     res.status(existingEntry ? 200 : 201).json({ message: existingEntry ? 'Updated reading list' : 'Added to reading list' });
   } catch (error) {
-    console.error('Error in addToReadingList:', error);
     res.status(500).json({ message: 'Error adding to reading list: ' + error.message });
   }
 };
@@ -136,8 +145,28 @@ const getReadingList = async (req, res) => {
     }));
     res.json(readingList);
   } catch (error) {
-    console.error('Error in getReadingList:', error);
     res.status(500).json({ message: 'Error fetching reading list: ' + error.message });
+  }
+};
+
+const deleteFromReadingList = async (req, res) => {
+  const { isbn } = req.body;
+  try {
+    if (!isbn) return res.status(400).json({ message: 'ISBN is required' });
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const initialLength = user.readingList.length;
+    user.readingList = user.readingList.filter(item => item.isbn !== isbn);
+    if (user.readingList.length === initialLength) {
+      return res.status(404).json({ message: 'Book not found in reading list' });
+    }
+
+    await user.save();
+    res.status(200).json({ message: 'Book removed from reading list' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting from reading list: ' + error.message });
   }
 };
 
@@ -160,4 +189,4 @@ const rateBook = async (req, res) => {
   }
 };
 
-module.exports = { createBook, getBooks, getBookById, updateBook, deleteBook, addToReadingList, getReadingList, rateBook };
+module.exports = { createBook, getBooks, getBookById, updateBook, deleteBook, addToReadingList, getReadingList, deleteFromReadingList, rateBook };

@@ -41,10 +41,23 @@ const ratingSchema = Joi.object({
   rating: Joi.number().min(1).max(5).required(),
 });
 
+const profileUpdateSchema = Joi.object({
+  username: Joi.string().min(3).optional(),
+  email: Joi.string().email().optional(),
+  password: Joi.string()
+    .min(8)
+    .pattern(new RegExp('^(?=.*[0-9])(?=.*[!@#$%^&*])[a-zA-Z0-9!@#$%^&*]{8,}$'))
+    .optional()
+    .messages({
+      'string.pattern.base': 'Password must include at least one number and one special character',
+      'string.min': 'Password must be at least 8 characters long'
+    }),
+}).or('username', 'email', 'password'); // At least one field must be provided
+
 const validate = (schema) => (req, res, next) => {
   const { error } = schema.validate(req.body);
   if (error) return res.status(400).json({ message: error.details[0].message });
   next();
 };
 
-module.exports = { validate, registerSchema, loginSchema, bookSchema, readingListSchema, ratingSchema };
+module.exports = { validate, registerSchema, loginSchema, bookSchema, readingListSchema, ratingSchema, profileUpdateSchema };
