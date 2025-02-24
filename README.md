@@ -194,10 +194,3 @@ server.js      # Express server entry point
 .gitignore     # Excludes sensitive/unnecessary files
 package.json   # Project metadata & dependencies
 ```
-
----
-
-## 🎯 Final Notes
-🔥 **Contributions are welcome!** Feel free to fork, improve, and submit a PR.
-💡 **Suggestions?** Open an issue and let's discuss improvements!
-💻 **Happy Coding!** 🚀
